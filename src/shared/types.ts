@@ -15,6 +15,7 @@ export interface RunningApp {
   appId: string
   pid: number
   windowIds: number[]
+  windowTitles: string[]
   name: string
   iconPath: string
   isFocused: boolean
@@ -41,4 +42,15 @@ export interface AppInfo {
   desktopFile: string
   startupWMClass: string
   categories: string[]
+}
+
+export interface DownloadPreviewItem {
+  name: string
+  iconPath: string
+  isDirectory: boolean
+}
+
+export interface WindowInfo {
+  windowId: number
+  title: string
 }

@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react'
 import { Tooltip } from './Tooltip'
 import { RunningIndicator } from './RunningIndicator'
 import { ContextMenu } from './ContextMenu'
+import { WindowPicker } from './WindowPicker'
 
 interface Props {
   id: string
@@ -15,6 +16,8 @@ interface Props {
   isLaunching: boolean
   draggable: boolean
   locked?: boolean
+  windowIds?: number[]
+  windowTitles?: string[]
   onDragStart: (id: string) => void
   onDragOver: (e: React.DragEvent, id: string) => void
   onDragEnd: () => void
@@ -26,15 +29,19 @@ interface Props {
 
 export function DockItem({
   id, name, iconPath, baseSize, scale, isRunning, isFocused, isPinned,
-  isLaunching, draggable, locked, onDragStart, onDragOver, onDragEnd,
+  isLaunching, draggable, locked, windowIds, windowTitles,
+  onDragStart, onDragOver, onDragEnd,
   onClick, onPin, onUnpin, onQuit,
 }: Props) {
   const [showTooltip, setShowTooltip] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const [showWindowPicker, setShowWindowPicker] = useState(false)
   const tooltipTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const didLongPress = useRef(false)
 
   const handleMouseEnter = () => {
-    tooltipTimeout.current = setTimeout(() => setShowTooltip(true), 500)
+    setShowTooltip(true)
   }
 
   const handleMouseLeave = () => {
@@ -46,6 +53,28 @@ export function DockItem({
     e.preventDefault()
     setContextMenu({ x: e.clientX, y: e.clientY })
   }, [])
+
+  const handleMouseDown = useCallback(() => {
+    didLongPress.current = false
+    if (isRunning && windowIds && windowIds.length > 1) {
+      longPressTimer.current = setTimeout(() => {
+        didLongPress.current = true
+        setShowWindowPicker(true)
+      }, 400)
+    }
+  }, [isRunning, windowIds])
+
+  const handleMouseUp = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }, [])
+
+  const handleClick = useCallback(() => {
+    if (didLongPress.current) return
+    onClick()
+  }, [onClick])
 
   const getContextMenuItems = () => {
     const items = []
@@ -69,7 +98,9 @@ export function DockItem({
     <div
       className={`dock-item ${isLaunching ? 'bouncing' : ''}`}
       style={{ width: scaledSize }}
-      onClick={onClick}
+      onClick={handleClick}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
       onContextMenu={handleContextMenu}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -78,7 +109,7 @@ export function DockItem({
       onDragOver={(e) => onDragOver(e, id)}
       onDragEnd={onDragEnd}
     >
-      <Tooltip text={name} visible={showTooltip && !contextMenu} />
+      <Tooltip text={name} visible={showTooltip && !contextMenu && !showWindowPicker} maxWidth={scaledSize} />
       <div
         className="dock-icon-img"
         style={{
@@ -97,7 +128,6 @@ export function DockItem({
           <div className="dock-icon-placeholder">{name[0]}</div>
         )}
       </div>
-      {/* Always reserve space for indicator so icons align */}
       <div className="running-indicator-slot">
         {isRunning && <RunningIndicator isFocused={isFocused} />}
       </div>
@@ -107,6 +137,17 @@ export function DockItem({
           x={contextMenu.x}
           y={contextMenu.y}
           onClose={() => setContextMenu(null)}
+        />
+      )}
+      {showWindowPicker && windowIds && windowTitles && (
+        <WindowPicker
+          windowIds={windowIds}
+          windowTitles={windowTitles}
+          onSelect={(wid) => {
+            window.dockAPI.focusWindow(wid)
+            setShowWindowPicker(false)
+          }}
+          onClose={() => setShowWindowPicker(false)}
         />
       )}
     </div>

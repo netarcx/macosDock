@@ -15,7 +15,7 @@ export function LaunchpadIcon({ baseSize, scale }: Props) {
   }, [])
 
   const handleMouseEnter = () => {
-    tooltipTimeout.current = setTimeout(() => setShowTooltip(true), 500)
+    setShowTooltip(true)
   }
 
   const handleMouseLeave = () => {
@@ -33,7 +33,7 @@ export function LaunchpadIcon({ baseSize, scale }: Props) {
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <Tooltip text="Launchpad" visible={showTooltip} />
+      <Tooltip text="Launchpad" visible={showTooltip} maxWidth={scaledSize} />
       <div
         className="dock-icon-img"
         style={{

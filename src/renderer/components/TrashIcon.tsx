@@ -23,7 +23,7 @@ export function TrashIcon({ baseSize, scale }: Props) {
   }, [])
 
   const handleMouseEnter = () => {
-    tooltipTimeout.current = setTimeout(() => setShowTooltip(true), 500)
+    setShowTooltip(true)
   }
 
   const handleMouseLeave = () => {
@@ -41,7 +41,7 @@ export function TrashIcon({ baseSize, scale }: Props) {
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <Tooltip text="Trash" visible={showTooltip} />
+      <Tooltip text="Trash" visible={showTooltip} maxWidth={scaledSize} />
       <div
         className="dock-icon-img trash-svg"
         style={{

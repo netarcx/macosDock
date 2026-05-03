@@ -7,6 +7,7 @@ export const IPC = {
   RUNNING_APPS_CHANGED: 'dock:running-apps-changed',
   LAUNCH_APP: 'dock:launch-app',
   FOCUS_APP: 'dock:focus-app',
+  FOCUS_WINDOW: 'dock:focus-window',
   QUIT_APP: 'dock:quit-app',
   PIN_APP: 'dock:pin-app',
   UNPIN_APP: 'dock:unpin-app',
@@ -14,5 +15,7 @@ export const IPC = {
   OPEN_TRASH: 'dock:open-trash',
   GET_TRASH_STATUS: 'dock:get-trash-status',
   OPEN_DOWNLOADS: 'dock:open-downloads',
+  GET_DOWNLOADS_PREVIEW: 'dock:get-downloads-preview',
   OPEN_LAUNCHPAD: 'dock:open-launchpad',
+  RESIZE_DOCK: 'dock:resize-dock',
 } as const

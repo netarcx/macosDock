@@ -3,8 +3,7 @@ import { screen } from 'electron'
 
 export function configureDockWindow(window: BrowserWindow): void {
   const display = screen.getPrimaryDisplay()
-  const { width, height } = display.workAreaSize
-  const dockHeight = 80
+  const dockHeight = 130
 
   window.setBounds({
     x: 0,

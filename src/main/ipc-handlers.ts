@@ -1,10 +1,10 @@
 import { ipcMain, BrowserWindow, app, shell } from 'electron'
-import { readFileSync, writeFileSync, mkdirSync } from 'fs'
-import { join } from 'path'
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'fs'
+import { join, extname } from 'path'
 import { homedir } from 'os'
 import { IPC } from '../shared/ipc-channels'
 import type { PlatformAdapter } from './platform/types'
-import type { DockConfig, DockItemConfig, RunningApp, AppInfo } from '../shared/types'
+import type { DockConfig, DockItemConfig, RunningApp, AppInfo, DownloadPreviewItem } from '../shared/types'
 import { launchApp } from './platform/linux/app-launcher'
 
 function getConfigPath(): string {
@@ -150,6 +150,10 @@ export function registerIpcHandlers(
     }
   })
 
+  ipcMain.handle(IPC.FOCUS_WINDOW, async (_event, windowId: number) => {
+    await platform.focusWindow('', windowId)
+  })
+
   ipcMain.handle(IPC.QUIT_APP, async (_event, appId: string) => {
     const running = runningApps.find(a => a.appId === appId || a.wmClass === appId)
     if (running) {
@@ -208,10 +212,52 @@ export function registerIpcHandlers(
     return shell.openPath(downloadsPath)
   })
 
+  ipcMain.handle(IPC.GET_DOWNLOADS_PREVIEW, (): DownloadPreviewItem[] => {
+    const downloadsPath = join(homedir(), 'Downloads')
+    try {
+      const entries = readdirSync(downloadsPath)
+      return entries
+        .slice(0, 5)
+        .map(name => {
+          const fullPath = join(downloadsPath, name)
+          let isDir = false
+          try { isDir = statSync(fullPath).isDirectory() } catch {}
+          const ext = extname(name).toLowerCase()
+          return { name, iconPath: ext, isDirectory: isDir }
+        })
+    } catch {
+      return []
+    }
+  })
+
   ipcMain.handle(IPC.OPEN_LAUNCHPAD, () => {
-    // Open GNOME Activities overview (equivalent of Launchpad)
-    launchApp('busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell Eval s "Main.overview.toggle();"')
+    const { execFile: execFileCb } = require('child_process')
+    const helperPaths = [
+      join(__dirname, '../../src/main/platform/linux/x11-helper.py'),
+      join(__dirname, '../../../src/main/platform/linux/x11-helper.py'),
+      join(process.cwd(), 'src/main/platform/linux/x11-helper.py'),
+    ]
+    for (const p of helperPaths) {
+      try {
+        execFileCb('python3', [p, 'super+a'], { env: { ...process.env, DISPLAY: ':0' } })
+        break
+      } catch { continue }
+    }
     return Promise.resolve()
+  })
+
+  ipcMain.handle(IPC.RESIZE_DOCK, (_event, height: number) => {
+    const win = getDockWindow()
+    if (win && !win.isDestroyed()) {
+      const { screen } = require('electron')
+      const display = screen.getPrimaryDisplay()
+      win.setBounds({
+        x: 0,
+        y: display.size.height - height,
+        width: display.size.width,
+        height,
+      })
+    }
   })
 
   platform.startWindowTracking((apps) => {

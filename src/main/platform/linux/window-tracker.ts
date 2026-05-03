@@ -1,10 +1,36 @@
 import { execFile } from 'child_process'
 import { readdir, readFile, readlink } from 'fs/promises'
-import { basename } from 'path'
+import { basename, join } from 'path'
 import { promisify } from 'util'
 import type { RunningApp } from '../../../shared/types'
 
 const execFileAsync = promisify(execFile)
+
+interface X11Window {
+  wid: number
+  pid: number
+  wmClass: string
+  title: string
+  isFocused: boolean
+}
+
+async function runHelper(args: string[]): Promise<string> {
+  const env = { ...process.env, DISPLAY: ':0' }
+  for (const path of [
+    join(__dirname, '../../src/main/platform/linux/x11-helper.py'),
+    join(__dirname, '../../../src/main/platform/linux/x11-helper.py'),
+    join(process.cwd(), 'src/main/platform/linux/x11-helper.py'),
+  ]) {
+    try {
+      const { stdout } = await execFileAsync('python3', [path, ...args], { env, timeout: 3000 })
+      return stdout
+    } catch (e: any) {
+      if (e.code === 'ENOENT' || e.message?.includes('No such file')) continue
+      return e.stdout || ''
+    }
+  }
+  return ''
+}
 
 export class WindowTracker {
   private interval: ReturnType<typeof setInterval> | null = null
@@ -30,13 +56,49 @@ export class WindowTracker {
       const apps = await this.getRunningApps()
       this.callback(apps)
     } catch {
-      // polling failure, will retry
+      // will retry
+    }
+  }
+
+  private async getX11Windows(): Promise<X11Window[]> {
+    const stdout = await runHelper(['list'])
+    if (!stdout.trim()) return []
+    try {
+      return JSON.parse(stdout)
+    } catch {
+      return []
     }
   }
 
   async getRunningApps(): Promise<RunningApp[]> {
+    const x11Windows = await this.getX11Windows()
+
+    // Build PID→X11 window map
+    const pidToX11 = new Map<number, X11Window[]>()
+    for (const win of x11Windows) {
+      const list = pidToX11.get(win.pid) || []
+      list.push(win)
+      pidToX11.set(win.pid, list)
+    }
+
+    // Scan /proc for all GUI processes
     const pids = await readdir('/proc').catch(() => [])
     const appMap = new Map<string, RunningApp>()
+
+    const skipList = ['bash', 'sh', 'zsh', 'fish', 'node', 'python3', 'python',
+      'dbus-daemon', 'dbus-broker', 'gjs', 'Xwayland', 'pipewire',
+      'pulseaudio', 'gnome-shell', 'gdm-session-wor', 'gdm-wayland-ses',
+      'gsd-', 'ibus-', 'at-spi', 'xdg-', 'gnome-session',
+      'snapd', 'snap', 'flatpak-session', 'p11-kit-server',
+      'gvfs', 'evolution-data', 'tracker-', 'fwupd', 'udisksd',
+      'polkitd', 'accounts-daemon', 'systemd', 'dconf-service',
+      'mutter-x11', 'localsearch', 'speech-dispatch', 'sd_espeak',
+      'sd_dummy', 'rygel', 'update-notifier', 'goa-', 'gnome-software',
+      'bwrap', 'npm', 'esbuild', 'next-server']
+
+    const helperNames = ['Web Content', 'WebExtensions', 'RDD Process',
+      'Utility Process', 'Socket Process', 'Privileged Cont',
+      'Isolated Web Co', 'GPU Process', 'crashhelper', 'forkserver']
 
     for (const entry of pids) {
       if (!/^\d+$/.test(entry)) continue
@@ -48,69 +110,75 @@ export class WindowTracker {
 
         const comm = (await readFile(`/proc/${pid}/comm`, 'utf-8').catch(() => '')).trim()
         if (!comm) continue
-
-        const skipList = ['bash', 'sh', 'zsh', 'fish', 'node', 'python3', 'python',
-          'dbus-daemon', 'dbus-broker', 'gjs', 'Xwayland', 'pipewire',
-          'pulseaudio', 'gnome-shell', 'gdm-session-wor', 'gdm-wayland-ses',
-          'gsd-', 'ibus-', 'at-spi', 'xdg-', 'gnome-session',
-          'snapd', 'snap', 'flatpak-session', 'p11-kit-server',
-          'gvfs', 'evolution-data', 'tracker-', 'fwupd', 'udisksd',
-          'polkitd', 'accounts-daemon', 'systemd', 'dconf-service']
-
         if (skipList.some(s => comm.startsWith(s))) continue
-
-        // Skip helper/utility processes (child processes of browsers etc.)
-        const helperNames = ['Web Content', 'WebExtensions', 'RDD Process',
-          'Utility Process', 'Socket Process', 'Privileged Cont',
-          'Isolated Web Co', 'GPU Process', 'crashhelper', 'forkserver']
         if (helperNames.some(h => comm.startsWith(h))) continue
 
-        // Try to get the exe name
         let exeName = comm
         try {
           const exePath = await readlink(`/proc/${pid}/exe`)
           exeName = basename(exePath)
         } catch {
-          // permission denied is common
+          // permission denied
         }
 
-        if (appMap.has(exeName)) continue
+        // Check if this process has X11 windows
+        const x11Wins = pidToX11.get(pid) || []
 
-        appMap.set(exeName, {
+        // Use X11 wmClass if available, otherwise use exe name
+        const wmClass = x11Wins.length > 0 ? x11Wins[0].wmClass : exeName
+        const key = wmClass.toLowerCase()
+
+        if (appMap.has(key)) {
+          const existing = appMap.get(key)!
+          for (const w of x11Wins) {
+            if (!existing.windowIds.includes(w.wid)) {
+              existing.windowIds.push(w.wid)
+              existing.windowTitles.push(w.title)
+            }
+            if (w.isFocused) existing.isFocused = true
+          }
+          continue
+        }
+
+        const windowIds = x11Wins.map(w => w.wid)
+        const windowTitles = x11Wins.map(w => w.title)
+        const isFocused = x11Wins.some(w => w.isFocused)
+
+        appMap.set(key, {
           appId: exeName,
           pid,
-          windowIds: [pid],
-          name: comm,
+          windowIds: windowIds.length > 0 ? windowIds : [pid],
+          windowTitles,
+          name: wmClass || comm,
           iconPath: '',
-          isFocused: false,
-          wmClass: exeName,
+          isFocused,
+          wmClass: wmClass || exeName,
         })
       } catch {
         continue
       }
     }
 
+    // Also add X11 windows that weren't matched to a /proc entry
+    for (const win of x11Windows) {
+      const key = win.wmClass.toLowerCase()
+      if (!key || appMap.has(key)) continue
+      appMap.set(key, {
+        appId: win.wmClass,
+        pid: win.pid,
+        windowIds: [win.wid],
+        windowTitles: [win.title],
+        name: win.wmClass,
+        iconPath: '',
+        isFocused: win.isFocused,
+        wmClass: win.wmClass,
+      })
+    }
+
     return Array.from(appMap.values())
   }
 
   async focusWindow(windowId: number): Promise<void> {
-    // On Wayland, we can try gdbus to activate the app
-    // This uses the GNOME Shell Eval interface (may be restricted)
-    try {
-      await execFileAsync('gdbus', [
-        'call', '--session',
-        '--dest', 'org.gnome.Shell',
-        '--object-path', '/org/gnome/Shell',
-        '--method', 'org.gnome.Shell.Eval',
-        `global.get_window_actors().find(a => a.meta_window.get_pid() === ${windowId})?.meta_window.activate(global.get_current_time())`
-      ])
-    } catch {
-      // Fallback: try xdotool if available
-      try {
-        await execFileAsync('xdotool', ['search', '--pid', String(windowId), '--name', '', 'windowactivate'])
-      } catch {
-        // focus not available
-      }
-    }
+    await runHelper(['activate', String(windowId)])
   }
 }

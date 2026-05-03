@@ -1,47 +1,45 @@
-import { useState, useCallback, useRef } from 'react'
-
-interface MagnificationState {
-  mouseX: number | null
-  isHovering: boolean
-}
+import { useCallback, useRef, useState } from 'react'
 
 export function useMagnification(
   baseSize: number,
   maxScale: number,
   enabled: boolean
 ) {
-  const [state, setState] = useState<MagnificationState>({
-    mouseX: null,
-    isHovering: false,
-  })
+  const mouseXRef = useRef<number | null>(null)
+  const hoveringRef = useRef(false)
   const rafRef = useRef<number | null>(null)
+  const [, setTick] = useState(0)
 
   const INFLUENCE_RADIUS = 200
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
     if (!enabled) return
+    mouseXRef.current = e.clientX
+    hoveringRef.current = true
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
     rafRef.current = requestAnimationFrame(() => {
-      setState({ mouseX: e.clientX, isHovering: true })
+      setTick(t => t + 1)
     })
   }, [enabled])
 
   const onMouseLeave = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
-    setState({ mouseX: null, isHovering: false })
+    mouseXRef.current = null
+    hoveringRef.current = false
+    setTick(t => t + 1)
   }, [])
 
   const getScale = useCallback((iconCenterX: number): number => {
-    if (!enabled || state.mouseX === null || !state.isHovering) {
+    if (!enabled || mouseXRef.current === null || !hoveringRef.current) {
       return 1
     }
 
-    const distance = Math.abs(state.mouseX - iconCenterX)
+    const distance = Math.abs(mouseXRef.current - iconCenterX)
     if (distance >= INFLUENCE_RADIUS) return 1
 
     const ratio = distance / INFLUENCE_RADIUS
     return 1 + (maxScale - 1) * Math.pow(Math.cos(ratio * Math.PI / 2), 2)
-  }, [maxScale, enabled, state.mouseX, state.isHovering])
+  }, [maxScale, enabled])
 
-  return { onMouseMove, onMouseLeave, getScale, isHovering: state.isHovering }
+  return { onMouseMove, onMouseLeave, getScale, isHovering: hoveringRef.current }
 }

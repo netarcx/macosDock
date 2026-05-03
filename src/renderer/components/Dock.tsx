@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState } from 'react'
+import { useRef, useCallback, useState, useMemo } from 'react'
 import type { DockConfig, RunningApp } from '../../shared/types'
 import { DockItem } from './DockItem'
 import { DockSeparator } from './DockSeparator'
@@ -40,7 +40,17 @@ export function Dock({
   const pinnedIds = config.pinnedItems.map(p => p.id)
   const { draggedId, onDragStart, onDragOver, onDragEnd } = useDragReorder(pinnedIds, onReorder)
 
-  const runningOnlyApps = runningApps.filter(app => {
+  const deduplicatedRunning = useMemo(() => {
+    const seen = new Set<string>()
+    return runningApps.filter(app => {
+      const key = app.wmClass.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }, [runningApps])
+
+  const runningOnlyApps = deduplicatedRunning.filter(app => {
     return !config.pinnedItems.some(p =>
       p.startupWMClass === app.wmClass ||
       p.name.toLowerCase() === app.wmClass.toLowerCase() ||
@@ -65,20 +75,20 @@ export function Dock({
   }, [onLaunch, onFocus])
 
   const isAppRunning = useCallback((item: typeof config.pinnedItems[0]) => {
-    return runningApps.some(app =>
+    return deduplicatedRunning.some(app =>
       app.wmClass === item.startupWMClass ||
       app.wmClass.toLowerCase() === item.name.toLowerCase() ||
       item.appId.toLowerCase().includes(app.wmClass.toLowerCase())
     )
-  }, [runningApps])
+  }, [deduplicatedRunning])
 
   const getRunningInfo = useCallback((item: typeof config.pinnedItems[0]) => {
-    return runningApps.find(app =>
+    return deduplicatedRunning.find(app =>
       app.wmClass === item.startupWMClass ||
       app.wmClass.toLowerCase() === item.name.toLowerCase() ||
       item.appId.toLowerCase().includes(app.wmClass.toLowerCase())
     )
-  }, [runningApps])
+  }, [deduplicatedRunning])
 
   const getItemCenter = (id: string): number => {
     const el = itemRefs.current.get(id)
@@ -97,11 +107,10 @@ export function Dock({
       onMouseMove={onMouseMove}
     >
       <div className="dock-wrapper">
-        {/* Fixed-size background bar */}
         <div className="dock-bar-bg" />
+        <div className="dock-bottom-zone" />
 
-        {/* Icons row — overflows above the bar when magnified */}
-        <div className="dock-items" onMouseLeave={onMouseLeave}>
+        <div className="dock-items">
           {config.pinnedItems
             .sort((a, b) => a.position - b.position)
             .map((item, idx) => {
@@ -126,6 +135,8 @@ export function Dock({
                     isLaunching={launchingApps.has(item.appId)}
                     draggable={true}
                     locked={item.locked}
+                    windowIds={runInfo?.windowIds}
+                    windowTitles={runInfo?.windowTitles}
                     onDragStart={onDragStart}
                     onDragOver={onDragOver}
                     onDragEnd={onDragEnd}
@@ -169,6 +180,8 @@ export function Dock({
                   isPinned={false}
                   isLaunching={false}
                   draggable={false}
+                  windowIds={app.windowIds}
+                  windowTitles={app.windowTitles}
                   onDragStart={() => {}}
                   onDragOver={() => {}}
                   onDragEnd={() => {}}

@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipc-channels'
-import type { DockConfig, RunningApp, AppInfo } from '../shared/types'
+import type { DockConfig, RunningApp, AppInfo, DownloadPreviewItem } from '../shared/types'
 
 const dockAPI = {
   getConfig: (): Promise<DockConfig> => ipcRenderer.invoke(IPC.GET_CONFIG),
@@ -9,6 +9,7 @@ const dockAPI = {
   getRunningApps: (): Promise<RunningApp[]> => ipcRenderer.invoke(IPC.GET_RUNNING_APPS),
   launchApp: (appId: string): Promise<void> => ipcRenderer.invoke(IPC.LAUNCH_APP, appId),
   focusApp: (appId: string): Promise<void> => ipcRenderer.invoke(IPC.FOCUS_APP, appId),
+  focusWindow: (windowId: number): Promise<void> => ipcRenderer.invoke(IPC.FOCUS_WINDOW, windowId),
   quitApp: (appId: string): Promise<void> => ipcRenderer.invoke(IPC.QUIT_APP, appId),
   pinApp: (appId: string): Promise<void> => ipcRenderer.invoke(IPC.PIN_APP, appId),
   unpinApp: (appId: string): Promise<void> => ipcRenderer.invoke(IPC.UNPIN_APP, appId),
@@ -16,7 +17,9 @@ const dockAPI = {
   openTrash: (): Promise<void> => ipcRenderer.invoke(IPC.OPEN_TRASH),
   getTrashStatus: (): Promise<boolean> => ipcRenderer.invoke(IPC.GET_TRASH_STATUS),
   openDownloads: (): Promise<void> => ipcRenderer.invoke(IPC.OPEN_DOWNLOADS),
+  getDownloadsPreview: (): Promise<DownloadPreviewItem[]> => ipcRenderer.invoke(IPC.GET_DOWNLOADS_PREVIEW),
   openLaunchpad: (): Promise<void> => ipcRenderer.invoke(IPC.OPEN_LAUNCHPAD),
+  resizeDock: (height: number): Promise<void> => ipcRenderer.invoke(IPC.RESIZE_DOCK, height),
   onRunningAppsChanged: (callback: (apps: RunningApp[]) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, apps: RunningApp[]) => callback(apps)
     ipcRenderer.on(IPC.RUNNING_APPS_CHANGED, listener)
