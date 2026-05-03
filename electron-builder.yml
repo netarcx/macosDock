@@ -1,0 +1,12 @@
+appId: com.macos-dock.app
+productName: macOS Dock
+directories:
+  buildResources: resources
+  output: dist
+files:
+  - out/**/*
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Utility

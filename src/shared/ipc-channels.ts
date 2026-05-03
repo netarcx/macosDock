@@ -1,0 +1,17 @@
+export const IPC = {
+  GET_CONFIG: 'dock:get-config',
+  SAVE_CONFIG: 'dock:save-config',
+  GET_PINNED_APPS: 'dock:get-pinned-apps',
+  GET_INSTALLED_APPS: 'dock:get-installed-apps',
+  GET_RUNNING_APPS: 'dock:get-running-apps',
+  RUNNING_APPS_CHANGED: 'dock:running-apps-changed',
+  LAUNCH_APP: 'dock:launch-app',
+  FOCUS_APP: 'dock:focus-app',
+  QUIT_APP: 'dock:quit-app',
+  PIN_APP: 'dock:pin-app',
+  UNPIN_APP: 'dock:unpin-app',
+  REORDER_PINNED: 'dock:reorder-pinned',
+  OPEN_TRASH: 'dock:open-trash',
+  GET_TRASH_STATUS: 'dock:get-trash-status',
+  RESIZE_DOCK: 'dock:resize-dock',
+} as const
