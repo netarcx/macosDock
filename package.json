@@ -4,7 +4,7 @@
   "description": "macOS-style dock for Linux and Windows",
   "main": "./out/main/index.js",
   "scripts": {
-    "dev": "electron-vite dev -- --ozone-platform=x11 --no-sandbox --disable-gpu",
+    "dev": "ELECTRON_DISABLE_SANDBOX=1 electron-vite dev -- --ozone-platform=x11 --no-sandbox --disable-gpu-compositing --in-process-gpu",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "dist:linux": "npm run build && electron-builder --linux"

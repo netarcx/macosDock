@@ -2,7 +2,7 @@ import type { BrowserWindow } from 'electron'
 import { shell } from 'electron'
 import { readdir } from 'fs/promises'
 import { homedir } from 'os'
-import { join } from 'path'
+import { basename, join } from 'path'
 import type { PlatformAdapter } from '../types'
 import type { AppInfo, RunningApp } from '../../../shared/types'
 import { discoverInstalledApps } from './app-discovery'
@@ -28,8 +28,44 @@ export class LinuxAdapter implements PlatformAdapter {
     return launchApp(execCommand)
   }
 
+  private matchAppToDesktop(runningApp: RunningApp): AppInfo | undefined {
+    const wmClass = runningApp.wmClass.toLowerCase()
+    const name = runningApp.name.toLowerCase()
+
+    return this.installedApps.find(app => {
+      const swmc = app.startupWMClass?.toLowerCase() || ''
+      const appName = app.name.toLowerCase()
+      const desktopBase = basename(app.desktopFile, '.desktop').toLowerCase()
+      const execBase = basename(app.execCommand.split(/\s+/)[0]).toLowerCase()
+
+      return swmc === wmClass ||
+        appName === wmClass ||
+        desktopBase === wmClass ||
+        execBase === wmClass ||
+        swmc === name ||
+        appName === name ||
+        desktopBase === name ||
+        execBase === name
+    })
+  }
+
   startWindowTracking(callback: (apps: RunningApp[]) => void): void {
-    this.windowTracker.start(callback)
+    this.windowTracker.start((rawApps) => {
+      const enriched = rawApps.map(app => {
+        const desktop = this.matchAppToDesktop(app)
+        if (desktop) {
+          return {
+            ...app,
+            appId: desktop.appId,
+            name: desktop.name,
+            iconPath: desktop.iconPath,
+            wmClass: desktop.startupWMClass || app.wmClass,
+          }
+        }
+        return app
+      })
+      callback(enriched)
+    })
   }
 
   stopWindowTracking(): void {

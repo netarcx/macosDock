@@ -1,4 +1,6 @@
 import { execFile } from 'child_process'
+import { readdir, readFile, readlink } from 'fs/promises'
+import { basename } from 'path'
 import { promisify } from 'util'
 import type { RunningApp } from '../../../shared/types'
 
@@ -11,7 +13,7 @@ export class WindowTracker {
   start(callback: (apps: RunningApp[]) => void): void {
     this.callback = callback
     this.poll()
-    this.interval = setInterval(() => this.poll(), 1000)
+    this.interval = setInterval(() => this.poll(), 1500)
   }
 
   stop(): void {
@@ -24,63 +26,65 @@ export class WindowTracker {
 
   private async poll(): Promise<void> {
     if (!this.callback) return
-
     try {
       const apps = await this.getRunningApps()
       this.callback(apps)
     } catch {
-      // xprop not available or X11 not running
+      // polling failure, will retry
     }
   }
 
   async getRunningApps(): Promise<RunningApp[]> {
-    const { stdout: clientList } = await execFileAsync('xprop', [
-      '-root', '_NET_CLIENT_LIST'
-    ])
-
-    const match = clientList.match(/#\s*(.+)/)
-    if (!match) return []
-
-    const windowIds = match[1].split(',').map(s => s.trim()).filter(Boolean)
-
-    const { stdout: activeWin } = await execFileAsync('xprop', [
-      '-root', '_NET_ACTIVE_WINDOW'
-    ])
-    const activeMatch = activeWin.match(/window id # (0x[0-9a-fA-F]+)/)
-    const activeWindowId = activeMatch ? activeMatch[1] : ''
-
+    const pids = await readdir('/proc').catch(() => [])
     const appMap = new Map<string, RunningApp>()
 
-    for (const wid of windowIds) {
+    for (const entry of pids) {
+      if (!/^\d+$/.test(entry)) continue
+      const pid = parseInt(entry)
+
       try {
-        const { stdout: props } = await execFileAsync('xprop', [
-          '-id', wid, 'WM_CLASS', 'WM_NAME', '_NET_WM_PID'
-        ])
+        const environRaw = await readFile(`/proc/${pid}/environ`, 'utf-8').catch(() => '')
+        if (!environRaw.includes('WAYLAND_DISPLAY') && !environRaw.includes('DISPLAY')) continue
 
-        const classMatch = props.match(/WM_CLASS\(STRING\) = "([^"]*)", "([^"]*)"/)
-        if (!classMatch) continue
+        const comm = (await readFile(`/proc/${pid}/comm`, 'utf-8').catch(() => '')).trim()
+        if (!comm) continue
 
-        const wmClass = classMatch[2]
-        const wmName = props.match(/WM_NAME\(.*\) = "([^"]*)"/)?.[1] || wmClass
-        const pidMatch = props.match(/_NET_WM_PID\(CARDINAL\) = (\d+)/)
-        const pid = pidMatch ? parseInt(pidMatch[1]) : 0
-        const numericWid = parseInt(wid, 16)
+        const skipList = ['bash', 'sh', 'zsh', 'fish', 'node', 'python3', 'python',
+          'dbus-daemon', 'dbus-broker', 'gjs', 'Xwayland', 'pipewire',
+          'pulseaudio', 'gnome-shell', 'gdm-session-wor', 'gdm-wayland-ses',
+          'gsd-', 'ibus-', 'at-spi', 'xdg-', 'gnome-session',
+          'snapd', 'snap', 'flatpak-session', 'p11-kit-server',
+          'gvfs', 'evolution-data', 'tracker-', 'fwupd', 'udisksd',
+          'polkitd', 'accounts-daemon', 'systemd', 'dconf-service']
 
-        const existing = appMap.get(wmClass)
-        if (existing) {
-          existing.windowIds.push(numericWid)
-          if (wid === activeWindowId) existing.isFocused = true
-        } else {
-          appMap.set(wmClass, {
-            appId: wmClass,
-            pid,
-            windowIds: [numericWid],
-            name: wmName,
-            iconPath: '',
-            isFocused: wid === activeWindowId,
-            wmClass,
-          })
+        if (skipList.some(s => comm.startsWith(s))) continue
+
+        // Skip helper/utility processes (child processes of browsers etc.)
+        const helperNames = ['Web Content', 'WebExtensions', 'RDD Process',
+          'Utility Process', 'Socket Process', 'Privileged Cont',
+          'Isolated Web Co', 'GPU Process', 'crashhelper', 'forkserver']
+        if (helperNames.some(h => comm.startsWith(h))) continue
+
+        // Try to get the exe name
+        let exeName = comm
+        try {
+          const exePath = await readlink(`/proc/${pid}/exe`)
+          exeName = basename(exePath)
+        } catch {
+          // permission denied is common
         }
+
+        if (appMap.has(exeName)) continue
+
+        appMap.set(exeName, {
+          appId: exeName,
+          pid,
+          windowIds: [pid],
+          name: comm,
+          iconPath: '',
+          isFocused: false,
+          wmClass: exeName,
+        })
       } catch {
         continue
       }
@@ -90,10 +94,23 @@ export class WindowTracker {
   }
 
   async focusWindow(windowId: number): Promise<void> {
-    const hexId = '0x' + windowId.toString(16)
-    await execFileAsync('xdotool', ['windowactivate', hexId]).catch(() => {
-      // xdotool may not be installed, try wmctrl as fallback
-      return execFileAsync('wmctrl', ['-i', '-a', hexId])
-    })
+    // On Wayland, we can try gdbus to activate the app
+    // This uses the GNOME Shell Eval interface (may be restricted)
+    try {
+      await execFileAsync('gdbus', [
+        'call', '--session',
+        '--dest', 'org.gnome.Shell',
+        '--object-path', '/org/gnome/Shell',
+        '--method', 'org.gnome.Shell.Eval',
+        `global.get_window_actors().find(a => a.meta_window.get_pid() === ${windowId})?.meta_window.activate(global.get_current_time())`
+      ])
+    } catch {
+      // Fallback: try xdotool if available
+      try {
+        await execFileAsync('xdotool', ['search', '--pid', String(windowId), '--name', '', 'windowactivate'])
+      } catch {
+        // focus not available
+      }
+    }
   }
 }

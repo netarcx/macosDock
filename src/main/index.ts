@@ -1,19 +1,18 @@
 import { app, BrowserWindow } from 'electron'
 import { createDockWindow } from './dock-window'
 import { createPlatformAdapter } from './platform'
-import { registerIpcHandlers } from './ipc-handlers'
+import { registerIpcHandlers, getConfig } from './ipc-handlers'
 
 let dockWindow: BrowserWindow | null = null
 
 app.commandLine.appendSwitch('disable-gpu')
-app.commandLine.appendSwitch('disable-software-rasterizer')
+app.commandLine.appendSwitch('disable-gpu-compositing')
+app.commandLine.appendSwitch('disable-gpu-sandbox')
+app.commandLine.appendSwitch('in-process-gpu')
 app.disableHardwareAcceleration()
 
 app.whenReady().then(async () => {
   const platform = createPlatformAdapter()
-
-  // Pre-discover installed apps
-  await platform.discoverInstalledApps()
 
   dockWindow = createDockWindow()
   platform.configureDockWindow(dockWindow)

@@ -58,6 +58,40 @@ function saveConfig(config: DockConfig): void {
   store.set('config', config)
 }
 
+function setupDefaultPins(apps: AppInfo[]): void {
+  const config = getConfig()
+  if (config.pinnedItems.length > 0) return
+
+  const defaultNames = ['firefox', 'nautilus', 'org.gnome.Nautilus', 'org.gnome.TextEditor', 'org.gnome.Settings']
+  const pinned: DockItemConfig[] = []
+  let pos = 0
+
+  for (const name of defaultNames) {
+    const app = apps.find(a =>
+      a.desktopFile.toLowerCase().includes(name.toLowerCase()) ||
+      a.name.toLowerCase().includes(name.toLowerCase())
+    )
+    if (app) {
+      pinned.push({
+        id: `pin-${Date.now()}-${pos}`,
+        type: 'pinned',
+        appId: app.appId,
+        name: app.name,
+        iconPath: app.iconPath,
+        execCommand: app.execCommand,
+        desktopFile: app.desktopFile,
+        startupWMClass: app.startupWMClass,
+        position: pos++,
+      })
+    }
+  }
+
+  if (pinned.length > 0) {
+    config.pinnedItems = pinned
+    saveConfig(config)
+  }
+}
+
 export function registerIpcHandlers(
   platform: PlatformAdapter,
   getDockWindow: () => BrowserWindow | null
@@ -71,6 +105,7 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC.GET_INSTALLED_APPS, async () => {
     if (installedApps.length === 0) {
       installedApps = await platform.discoverInstalledApps()
+      setupDefaultPins(installedApps)
     }
     return installedApps
   })

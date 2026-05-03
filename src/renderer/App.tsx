@@ -7,7 +7,11 @@ export default function App() {
   const [runningApps, setRunningApps] = useState<RunningApp[]>([])
 
   useEffect(() => {
-    window.dockAPI.getConfig().then(setConfig)
+    // Trigger app discovery (sets up default pins on first launch)
+    window.dockAPI.getInstalledApps().then(() => {
+      // Now load config (which may have been updated with default pins)
+      window.dockAPI.getConfig().then(setConfig)
+    })
     window.dockAPI.getRunningApps().then(setRunningApps)
 
     const cleanup = window.dockAPI.onRunningAppsChanged(setRunningApps)
