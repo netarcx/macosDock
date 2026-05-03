@@ -31,12 +31,12 @@ export function TrashIcon({ baseSize, scale }: Props) {
     setShowTooltip(false)
   }
 
-  const imgSize = baseSize - 8
+  const scaledSize = Math.round(baseSize * scale)
 
   return (
     <div
       className="dock-item trash-icon"
-      style={{ width: baseSize, height: baseSize }}
+      style={{ width: scaledSize }}
       onClick={handleClick}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -45,10 +45,8 @@ export function TrashIcon({ baseSize, scale }: Props) {
       <div
         className="dock-icon-img trash-svg"
         style={{
-          width: imgSize,
-          height: imgSize,
-          transform: `scale(${scale})`,
-          transformOrigin: 'bottom center',
+          width: scaledSize - 8,
+          height: scaledSize - 8,
         }}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -61,6 +59,7 @@ export function TrashIcon({ baseSize, scale }: Props) {
           )}
         </svg>
       </div>
+      <div className="running-indicator-slot" />
     </div>
   )
 }

@@ -1,10 +1,11 @@
-import { ipcMain, BrowserWindow, app } from 'electron'
+import { ipcMain, BrowserWindow, app, shell } from 'electron'
 import { readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { join } from 'path'
+import { homedir } from 'os'
 import { IPC } from '../shared/ipc-channels'
 import type { PlatformAdapter } from './platform/types'
 import type { DockConfig, DockItemConfig, RunningApp, AppInfo } from '../shared/types'
-import { resizeDockWindow } from './platform/linux/dock-position'
+import { launchApp } from './platform/linux/app-launcher'
 
 function getConfigPath(): string {
   const dir = join(app.getPath('userData'), 'config')
@@ -44,6 +45,7 @@ const DEFAULT_CONFIG: DockConfig = {
   autoHideDelay: 1000,
   pinnedItems: [],
   showTrash: true,
+  showDownloads: true,
   theme: 'dark',
 }
 
@@ -62,26 +64,47 @@ function setupDefaultPins(apps: AppInfo[]): void {
   const config = getConfig()
   if (config.pinnedItems.length > 0) return
 
-  // File browser first, then app launcher / other apps
   const defaultNames = ['nautilus', 'org.gnome.Nautilus', 'firefox', 'org.gnome.TextEditor', 'org.gnome.Settings']
   const pinned: DockItemConfig[] = []
   let pos = 0
 
+  // Files icon: locked at position 0
+  const filesApp = apps.find(a =>
+    a.desktopFile.toLowerCase().includes('nautilus') ||
+    a.name.toLowerCase() === 'files'
+  )
+  if (filesApp) {
+    pinned.push({
+      id: 'pin-files',
+      type: 'pinned',
+      appId: filesApp.appId,
+      name: filesApp.name,
+      iconPath: filesApp.iconPath,
+      execCommand: filesApp.execCommand,
+      desktopFile: filesApp.desktopFile,
+      startupWMClass: filesApp.startupWMClass,
+      position: pos++,
+      locked: true,
+    })
+  }
+
+  // Skip nautilus in the rest since we already added it
   for (const name of defaultNames) {
-    const app = apps.find(a =>
+    if (name.toLowerCase().includes('nautilus')) continue
+    const foundApp = apps.find(a =>
       a.desktopFile.toLowerCase().includes(name.toLowerCase()) ||
       a.name.toLowerCase().includes(name.toLowerCase())
     )
-    if (app) {
+    if (foundApp) {
       pinned.push({
         id: `pin-${Date.now()}-${pos}`,
         type: 'pinned',
-        appId: app.appId,
-        name: app.name,
-        iconPath: app.iconPath,
-        execCommand: app.execCommand,
-        desktopFile: app.desktopFile,
-        startupWMClass: app.startupWMClass,
+        appId: foundApp.appId,
+        name: foundApp.name,
+        iconPath: foundApp.iconPath,
+        execCommand: foundApp.execCommand,
+        desktopFile: foundApp.desktopFile,
+        startupWMClass: foundApp.startupWMClass,
         position: pos++,
       })
     }
@@ -114,9 +137,9 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC.GET_RUNNING_APPS, () => runningApps)
 
   ipcMain.handle(IPC.LAUNCH_APP, async (_event, appId: string) => {
-    const app = installedApps.find(a => a.appId === appId)
-    if (app) {
-      await platform.launchApp(app.execCommand)
+    const foundApp = installedApps.find(a => a.appId === appId)
+    if (foundApp) {
+      await platform.launchApp(foundApp.execCommand)
     }
   })
 
@@ -136,8 +159,8 @@ export function registerIpcHandlers(
 
   ipcMain.handle(IPC.PIN_APP, async (_event, appId: string) => {
     const config = getConfig()
-    const app = installedApps.find(a => a.appId === appId)
-    if (!app) return
+    const foundApp = installedApps.find(a => a.appId === appId)
+    if (!foundApp) return
 
     const alreadyPinned = config.pinnedItems.some(p => p.appId === appId)
     if (alreadyPinned) return
@@ -145,12 +168,12 @@ export function registerIpcHandlers(
     const newItem: DockItemConfig = {
       id: `pin-${Date.now()}`,
       type: 'pinned',
-      appId: app.appId,
-      name: app.name,
-      iconPath: app.iconPath,
-      execCommand: app.execCommand,
-      desktopFile: app.desktopFile,
-      startupWMClass: app.startupWMClass,
+      appId: foundApp.appId,
+      name: foundApp.name,
+      iconPath: foundApp.iconPath,
+      execCommand: foundApp.execCommand,
+      desktopFile: foundApp.desktopFile,
+      startupWMClass: foundApp.startupWMClass,
       position: config.pinnedItems.length,
     }
 
@@ -160,8 +183,10 @@ export function registerIpcHandlers(
 
   ipcMain.handle(IPC.UNPIN_APP, (_event, appId: string) => {
     const config = getConfig()
+    const item = config.pinnedItems.find(p => p.appId === appId)
+    if (item?.locked) return
     config.pinnedItems = config.pinnedItems.filter(p => p.appId !== appId)
-    config.pinnedItems.forEach((item, i) => { item.position = i })
+    config.pinnedItems.forEach((p, i) => { p.position = i })
     saveConfig(config)
   })
 
@@ -171,20 +196,24 @@ export function registerIpcHandlers(
     config.pinnedItems = orderedIds
       .map(id => itemMap.get(id))
       .filter((item): item is DockItemConfig => item !== undefined)
-    config.pinnedItems.forEach((item, i) => { item.position = i })
+    config.pinnedItems.forEach((p, i) => { p.position = i })
     saveConfig(config)
   })
 
   ipcMain.handle(IPC.OPEN_TRASH, () => platform.openTrash())
-
   ipcMain.handle(IPC.GET_TRASH_STATUS, () => platform.isTrashEmpty())
 
-  ipcMain.handle(IPC.RESIZE_DOCK, (_event, height: number) => {
-    const win = getDockWindow()
-    if (win) resizeDockWindow(win, height)
+  ipcMain.handle(IPC.OPEN_DOWNLOADS, () => {
+    const downloadsPath = join(homedir(), 'Downloads')
+    return shell.openPath(downloadsPath)
   })
 
-  // Start window tracking
+  ipcMain.handle(IPC.OPEN_LAUNCHPAD, () => {
+    // Open GNOME Activities overview (equivalent of Launchpad)
+    launchApp('busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell Eval s "Main.overview.toggle();"')
+    return Promise.resolve()
+  })
+
   platform.startWindowTracking((apps) => {
     runningApps = apps
     const win = getDockWindow()

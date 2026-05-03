@@ -60,7 +60,7 @@
   justify-content: center;
 }
 
-/* Dock Item — fixed layout size */
+/* Dock Item — width changes for fan-out magnification */
 .dock-item {
   position: relative;
   display: flex;
@@ -70,6 +70,7 @@
   cursor: pointer;
   -webkit-app-region: no-drag;
   pointer-events: auto;
+  transition: width 0.15s ease-out;
 }
 
 .dock-item:active {
@@ -107,13 +108,21 @@
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
 }
 
+/* Running Indicator Slot — always reserves space so icons align */
+.running-indicator-slot {
+  height: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
 /* Running Indicator */
 .running-indicator {
   width: 4px;
   height: 4px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.85);
-  margin-top: 2px;
   transition: opacity 0.2s;
 }
 
@@ -129,7 +138,7 @@
 }
 
 .dock-item.bouncing {
-  animation: dock-bounce 1.2s ease-in-out;
+  animation: dock-bounce 3s ease-in-out;
 }
 
 /* Tooltip */

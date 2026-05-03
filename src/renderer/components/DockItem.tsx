@@ -14,6 +14,7 @@ interface Props {
   isPinned: boolean
   isLaunching: boolean
   draggable: boolean
+  locked?: boolean
   onDragStart: (id: string) => void
   onDragOver: (e: React.DragEvent, id: string) => void
   onDragEnd: () => void
@@ -25,7 +26,7 @@ interface Props {
 
 export function DockItem({
   id, name, iconPath, baseSize, scale, isRunning, isFocused, isPinned,
-  isLaunching, draggable, onDragStart, onDragOver, onDragEnd,
+  isLaunching, draggable, locked, onDragStart, onDragOver, onDragEnd,
   onClick, onPin, onUnpin, onQuit,
 }: Props) {
   const [showTooltip, setShowTooltip] = useState(false)
@@ -50,9 +51,9 @@ export function DockItem({
     const items = []
     if (isPinned && !isRunning) {
       items.push({ label: 'Open', action: onClick })
-      items.push({ label: 'Unpin from Dock', action: onUnpin, separator: true })
+      if (!locked) items.push({ label: 'Unpin from Dock', action: onUnpin, separator: true })
     } else if (isPinned && isRunning) {
-      items.push({ label: 'Unpin from Dock', action: onUnpin })
+      if (!locked) items.push({ label: 'Unpin from Dock', action: onUnpin })
       items.push({ label: 'Quit', action: onQuit, separator: true })
     } else if (isRunning) {
       items.push({ label: 'Pin to Dock', action: onPin })
@@ -62,20 +63,17 @@ export function DockItem({
   }
 
   const iconSrc = iconPath.startsWith('/') ? `dock-icon://${encodeURIComponent(iconPath)}` : iconPath
-  const imgSize = baseSize - 8
+  const scaledSize = Math.round(baseSize * scale)
 
   return (
     <div
       className={`dock-item ${isLaunching ? 'bouncing' : ''}`}
-      style={{
-        width: baseSize,
-        height: baseSize,
-      }}
+      style={{ width: scaledSize }}
       onClick={onClick}
       onContextMenu={handleContextMenu}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      draggable={draggable}
+      draggable={draggable && !locked}
       onDragStart={() => onDragStart(id)}
       onDragOver={(e) => onDragOver(e, id)}
       onDragEnd={onDragEnd}
@@ -84,10 +82,8 @@ export function DockItem({
       <div
         className="dock-icon-img"
         style={{
-          width: imgSize,
-          height: imgSize,
-          transform: `scale(${scale})`,
-          transformOrigin: 'bottom center',
+          width: scaledSize - 8,
+          height: scaledSize - 8,
         }}
       >
         {iconSrc ? (
@@ -101,7 +97,10 @@ export function DockItem({
           <div className="dock-icon-placeholder">{name[0]}</div>
         )}
       </div>
-      {isRunning && <RunningIndicator isFocused={isFocused} />}
+      {/* Always reserve space for indicator so icons align */}
+      <div className="running-indicator-slot">
+        {isRunning && <RunningIndicator isFocused={isFocused} />}
+      </div>
       {contextMenu && (
         <ContextMenu
           items={getContextMenuItems()}

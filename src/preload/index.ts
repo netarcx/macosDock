@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipc-channels'
-import type { DockConfig, DockItemConfig, RunningApp, AppInfo } from '../shared/types'
+import type { DockConfig, RunningApp, AppInfo } from '../shared/types'
 
 const dockAPI = {
   getConfig: (): Promise<DockConfig> => ipcRenderer.invoke(IPC.GET_CONFIG),
@@ -15,7 +15,8 @@ const dockAPI = {
   reorderPinned: (orderedIds: string[]): Promise<void> => ipcRenderer.invoke(IPC.REORDER_PINNED, orderedIds),
   openTrash: (): Promise<void> => ipcRenderer.invoke(IPC.OPEN_TRASH),
   getTrashStatus: (): Promise<boolean> => ipcRenderer.invoke(IPC.GET_TRASH_STATUS),
-  resizeDock: (height: number): Promise<void> => ipcRenderer.invoke(IPC.RESIZE_DOCK, height),
+  openDownloads: (): Promise<void> => ipcRenderer.invoke(IPC.OPEN_DOWNLOADS),
+  openLaunchpad: (): Promise<void> => ipcRenderer.invoke(IPC.OPEN_LAUNCHPAD),
   onRunningAppsChanged: (callback: (apps: RunningApp[]) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, apps: RunningApp[]) => callback(apps)
     ipcRenderer.on(IPC.RUNNING_APPS_CHANGED, listener)

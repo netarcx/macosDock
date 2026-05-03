@@ -3,6 +3,8 @@ import type { DockConfig, RunningApp } from '../../shared/types'
 import { DockItem } from './DockItem'
 import { DockSeparator } from './DockSeparator'
 import { TrashIcon } from './TrashIcon'
+import { LaunchpadIcon } from './LaunchpadIcon'
+import { DownloadsIcon } from './DownloadsIcon'
 import { useMagnification } from '../hooks/useMagnification'
 import { useDragReorder } from '../hooks/useDragReorder'
 import { useAutoHide } from '../hooks/useAutoHide'
@@ -85,7 +87,6 @@ export function Dock({
     return rect.left + rect.width / 2
   }
 
-  const hasRunningOnly = runningOnlyApps.length > 0
   const baseSize = config.iconSize
 
   return (
@@ -103,11 +104,11 @@ export function Dock({
         <div className="dock-items" onMouseLeave={onMouseLeave}>
           {config.pinnedItems
             .sort((a, b) => a.position - b.position)
-            .map(item => {
+            .map((item, idx) => {
               const running = isAppRunning(item)
               const runInfo = getRunningInfo(item)
               const scale = getScale(getItemCenter(item.id))
-              return (
+              const elements = [
                 <div
                   key={item.id}
                   ref={el => { if (el) itemRefs.current.set(item.id, el) }}
@@ -124,6 +125,7 @@ export function Dock({
                     isPinned={true}
                     isLaunching={launchingApps.has(item.appId)}
                     draggable={true}
+                    locked={item.locked}
                     onDragStart={onDragStart}
                     onDragOver={onDragOver}
                     onDragEnd={onDragEnd}
@@ -132,8 +134,20 @@ export function Dock({
                     onUnpin={() => onUnpin(item.appId)}
                     onQuit={() => runInfo && onQuit(runInfo.wmClass)}
                   />
-                </div>
-              )
+                </div>,
+              ]
+              if (idx === 0) {
+                elements.push(
+                  <div
+                    key="launchpad"
+                    ref={el => { if (el) itemRefs.current.set('launchpad', el) }}
+                    className="dock-item-wrapper"
+                  >
+                    <LaunchpadIcon baseSize={baseSize} scale={getScale(getItemCenter('launchpad'))} />
+                  </div>
+                )
+              }
+              return elements
             })}
 
           {runningOnlyApps.map(app => {
@@ -167,7 +181,16 @@ export function Dock({
             )
           })}
 
-          {config.showTrash && <DockSeparator />}
+          {(config.showTrash || config.showDownloads) && <DockSeparator />}
+
+          {config.showDownloads && (
+            <div
+              className="dock-item-wrapper"
+              ref={el => { if (el) itemRefs.current.set('downloads', el) }}
+            >
+              <DownloadsIcon baseSize={baseSize} scale={getScale(getItemCenter('downloads'))} />
+            </div>
+          )}
 
           {config.showTrash && (
             <div

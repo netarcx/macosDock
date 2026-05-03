@@ -8,6 +8,7 @@ export interface DockItemConfig {
   desktopFile?: string
   startupWMClass?: string
   position: number
+  locked?: boolean
 }
 
 export interface RunningApp {
@@ -28,6 +29,7 @@ export interface DockConfig {
   autoHideDelay: number
   pinnedItems: DockItemConfig[]
   showTrash: boolean
+  showDownloads: boolean
   theme: 'light' | 'dark' | 'auto'
 }
 

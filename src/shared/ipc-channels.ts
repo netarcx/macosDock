@@ -13,5 +13,6 @@ export const IPC = {
   REORDER_PINNED: 'dock:reorder-pinned',
   OPEN_TRASH: 'dock:open-trash',
   GET_TRASH_STATUS: 'dock:get-trash-status',
-  RESIZE_DOCK: 'dock:resize-dock',
+  OPEN_DOWNLOADS: 'dock:open-downloads',
+  OPEN_LAUNCHPAD: 'dock:open-launchpad',
 } as const
