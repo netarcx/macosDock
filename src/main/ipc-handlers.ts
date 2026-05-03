@@ -62,7 +62,8 @@ function setupDefaultPins(apps: AppInfo[]): void {
   const config = getConfig()
   if (config.pinnedItems.length > 0) return
 
-  const defaultNames = ['firefox', 'nautilus', 'org.gnome.Nautilus', 'org.gnome.TextEditor', 'org.gnome.Settings']
+  // File browser first, then app launcher / other apps
+  const defaultNames = ['nautilus', 'org.gnome.Nautilus', 'firefox', 'org.gnome.TextEditor', 'org.gnome.Settings']
   const pinned: DockItemConfig[] = []
   let pos = 0
 

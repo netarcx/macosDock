@@ -1,26 +1,38 @@
-/* Dock Container */
+/* Dock Container — fills the Electron window */
 .dock-container {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
+  height: 100%;
   display: flex;
   justify-content: center;
   align-items: flex-end;
   padding-bottom: 4px;
   transition: transform 0.3s ease-in-out;
+  pointer-events: none;
 }
 
 .dock-container.dock-hidden {
   transform: translateY(calc(100% - 4px));
 }
 
-/* Dock Bar - frosted glass */
-.dock-bar {
+/* Dock wrapper — positions items relative to background */
+.dock-wrapper {
+  position: relative;
   display: flex;
-  align-items: flex-end;
-  gap: 2px;
-  padding: 4px 8px;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: auto;
+}
+
+/* Dock Bar background — fixed size, sits behind icons */
+.dock-bar-bg {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 58px;
   background: rgba(30, 30, 30, 0.75);
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -28,9 +40,27 @@
     0 0 0 0.5px rgba(0, 0, 0, 0.3),
     0 8px 32px rgba(0, 0, 0, 0.4),
     inset 0 0.5px 0 rgba(255, 255, 255, 0.1);
+  pointer-events: none;
 }
 
-/* Dock Item */
+/* Dock items row — sits on top of background */
+.dock-items {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 0 12px 6px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Wrapper keeps a fixed slot in the flex layout */
+.dock-item-wrapper {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+/* Dock Item — fixed layout size */
 .dock-item {
   position: relative;
   display: flex;
@@ -38,21 +68,23 @@
   align-items: center;
   justify-content: flex-end;
   cursor: pointer;
-  transition: width 0.1s ease-out, height 0.1s ease-out;
   -webkit-app-region: no-drag;
+  pointer-events: auto;
 }
 
 .dock-item:active {
   opacity: 0.7;
 }
 
-/* Icon image container */
+/* Icon image container — scales via transform, overflows upward */
 .dock-icon-img {
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 12px;
-  overflow: hidden;
+  overflow: visible;
+  transition: transform 0.1s ease-out;
+  will-change: transform;
 }
 
 .dock-icon-img img {
@@ -107,7 +139,6 @@
   left: 50%;
   transform: translateX(-50%);
   background: rgba(30, 30, 30, 0.9);
-  backdrop-filter: blur(10px);
   color: white;
   padding: 4px 12px;
   border-radius: 6px;
@@ -134,7 +165,6 @@
 .context-menu {
   position: fixed;
   background: rgba(40, 40, 40, 0.95);
-  backdrop-filter: blur(20px);
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);

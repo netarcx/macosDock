@@ -3,7 +3,8 @@ import { join } from 'path'
 
 export function createDockWindow(): BrowserWindow {
   const display = screen.getPrimaryDisplay()
-  const dockHeight = 80
+  // Tall enough for base icons + magnified overflow + padding
+  const dockHeight = 140
 
   const win = new BrowserWindow({
     width: display.size.width,

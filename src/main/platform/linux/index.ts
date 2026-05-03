@@ -51,19 +51,18 @@ export class LinuxAdapter implements PlatformAdapter {
 
   startWindowTracking(callback: (apps: RunningApp[]) => void): void {
     this.windowTracker.start((rawApps) => {
-      const enriched = rawApps.map(app => {
+      const enriched: RunningApp[] = []
+      for (const app of rawApps) {
         const desktop = this.matchAppToDesktop(app)
-        if (desktop) {
-          return {
-            ...app,
-            appId: desktop.appId,
-            name: desktop.name,
-            iconPath: desktop.iconPath,
-            wmClass: desktop.startupWMClass || app.wmClass,
-          }
-        }
-        return app
-      })
+        if (!desktop) continue // Only show apps that match a .desktop file
+        enriched.push({
+          ...app,
+          appId: desktop.appId,
+          name: desktop.name,
+          iconPath: desktop.iconPath,
+          wmClass: desktop.startupWMClass || app.wmClass,
+        })
+      }
       callback(enriched)
     })
   }

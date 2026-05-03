@@ -31,18 +31,17 @@ export function useMagnification(
     setState({ mouseX: null, isHovering: false })
   }, [])
 
-  const getIconSize = useCallback((iconCenterX: number): number => {
+  const getScale = useCallback((iconCenterX: number): number => {
     if (!enabled || state.mouseX === null || !state.isHovering) {
-      return baseSize
+      return 1
     }
 
     const distance = Math.abs(state.mouseX - iconCenterX)
-    if (distance >= INFLUENCE_RADIUS) return baseSize
+    if (distance >= INFLUENCE_RADIUS) return 1
 
     const ratio = distance / INFLUENCE_RADIUS
-    const scale = 1 + (maxScale - 1) * Math.pow(Math.cos(ratio * Math.PI / 2), 2)
-    return Math.round(baseSize * scale)
-  }, [baseSize, maxScale, enabled, state.mouseX, state.isHovering])
+    return 1 + (maxScale - 1) * Math.pow(Math.cos(ratio * Math.PI / 2), 2)
+  }, [maxScale, enabled, state.mouseX, state.isHovering])
 
-  return { onMouseMove, onMouseLeave, getIconSize, isHovering: state.isHovering }
+  return { onMouseMove, onMouseLeave, getScale, isHovering: state.isHovering }
 }

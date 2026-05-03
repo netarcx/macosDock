@@ -7,7 +7,8 @@ interface Props {
   id: string
   name: string
   iconPath: string
-  size: number
+  baseSize: number
+  scale: number
   isRunning: boolean
   isFocused: boolean
   isPinned: boolean
@@ -23,14 +24,13 @@ interface Props {
 }
 
 export function DockItem({
-  id, name, iconPath, size, isRunning, isFocused, isPinned,
+  id, name, iconPath, baseSize, scale, isRunning, isFocused, isPinned,
   isLaunching, draggable, onDragStart, onDragOver, onDragEnd,
   onClick, onPin, onUnpin, onQuit,
 }: Props) {
   const [showTooltip, setShowTooltip] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const tooltipTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const itemRef = useRef<HTMLDivElement>(null)
 
   const handleMouseEnter = () => {
     tooltipTimeout.current = setTimeout(() => setShowTooltip(true), 500)
@@ -61,13 +61,16 @@ export function DockItem({
     return items
   }
 
-  const iconSrc = iconPath.startsWith('/') ? `file://${iconPath}` : iconPath
+  const iconSrc = iconPath.startsWith('/') ? `dock-icon://${encodeURIComponent(iconPath)}` : iconPath
+  const imgSize = baseSize - 8
 
   return (
     <div
-      ref={itemRef}
-      className={`dock-item ${isLaunching ? 'bouncing' : ''} ${isFocused ? 'focused' : ''}`}
-      style={{ width: size, height: size }}
+      className={`dock-item ${isLaunching ? 'bouncing' : ''}`}
+      style={{
+        width: baseSize,
+        height: baseSize,
+      }}
       onClick={onClick}
       onContextMenu={handleContextMenu}
       onMouseEnter={handleMouseEnter}
@@ -78,7 +81,15 @@ export function DockItem({
       onDragEnd={onDragEnd}
     >
       <Tooltip text={name} visible={showTooltip && !contextMenu} />
-      <div className="dock-icon-img" style={{ width: size - 8, height: size - 8 }}>
+      <div
+        className="dock-icon-img"
+        style={{
+          width: imgSize,
+          height: imgSize,
+          transform: `scale(${scale})`,
+          transformOrigin: 'bottom center',
+        }}
+      >
         {iconSrc ? (
           <img
             src={iconSrc}

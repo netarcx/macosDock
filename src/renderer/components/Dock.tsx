@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, useState } from 'react'
+import { useRef, useCallback, useState } from 'react'
 import type { DockConfig, RunningApp } from '../../shared/types'
 import { DockItem } from './DockItem'
 import { DockSeparator } from './DockSeparator'
@@ -16,17 +16,15 @@ interface Props {
   onPin: (appId: string) => void
   onUnpin: (appId: string) => void
   onReorder: (orderedIds: string[]) => void
-  onResize: (height: number) => void
 }
 
 export function Dock({
-  config, runningApps, onLaunch, onFocus, onQuit, onPin, onUnpin, onReorder, onResize,
+  config, runningApps, onLaunch, onFocus, onQuit, onPin, onUnpin, onReorder,
 }: Props) {
-  const dockRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const [launchingApps, setLaunchingApps] = useState<Set<string>>(new Set())
 
-  const { onMouseMove, onMouseLeave, getIconSize, isHovering } = useMagnification(
+  const { onMouseMove, onMouseLeave, getScale } = useMagnification(
     config.iconSize,
     config.magnificationScale,
     config.magnification
@@ -40,8 +38,6 @@ export function Dock({
   const pinnedIds = config.pinnedItems.map(p => p.id)
   const { draggedId, onDragStart, onDragOver, onDragEnd } = useDragReorder(pinnedIds, onReorder)
 
-  // Build the list of running-only apps (not pinned)
-  const pinnedAppIds = new Set(config.pinnedItems.map(p => p.startupWMClass || p.name))
   const runningOnlyApps = runningApps.filter(app => {
     return !config.pinnedItems.some(p =>
       p.startupWMClass === app.wmClass ||
@@ -49,14 +45,6 @@ export function Dock({
       p.appId.toLowerCase().includes(app.wmClass.toLowerCase())
     )
   })
-
-  // Resize dock window when magnification is active
-  useEffect(() => {
-    const maxHeight = isHovering && config.magnification
-      ? Math.round(config.iconSize * config.magnificationScale) + 40
-      : config.iconSize + 32
-    onResize(maxHeight)
-  }, [isHovering, config.iconSize, config.magnificationScale, config.magnification, onResize])
 
   const handleClick = useCallback((appId: string, isRunning: boolean, wmClass?: string) => {
     if (isRunning) {
@@ -98,93 +86,98 @@ export function Dock({
   }
 
   const hasRunningOnly = runningOnlyApps.length > 0
+  const baseSize = config.iconSize
 
   return (
     <div
       className={`dock-container ${visible ? '' : 'dock-hidden'}`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => { handleMouseLeave(); onMouseLeave() }}
+      onMouseMove={onMouseMove}
     >
-      <div
-        ref={dockRef}
-        className="dock-bar"
-        onMouseMove={onMouseMove}
-        onMouseLeave={onMouseLeave}
-      >
-        {/* Pinned items */}
-        {config.pinnedItems
-          .sort((a, b) => a.position - b.position)
-          .map(item => {
-            const running = isAppRunning(item)
-            const runInfo = getRunningInfo(item)
-            const size = getIconSize(getItemCenter(item.id))
+      <div className="dock-wrapper">
+        {/* Fixed-size background bar */}
+        <div className="dock-bar-bg" />
+
+        {/* Icons row — overflows above the bar when magnified */}
+        <div className="dock-items" onMouseLeave={onMouseLeave}>
+          {config.pinnedItems
+            .sort((a, b) => a.position - b.position)
+            .map(item => {
+              const running = isAppRunning(item)
+              const runInfo = getRunningInfo(item)
+              const scale = getScale(getItemCenter(item.id))
+              return (
+                <div
+                  key={item.id}
+                  ref={el => { if (el) itemRefs.current.set(item.id, el) }}
+                  className="dock-item-wrapper"
+                >
+                  <DockItem
+                    id={item.id}
+                    name={item.name}
+                    iconPath={item.iconPath}
+                    baseSize={baseSize}
+                    scale={scale}
+                    isRunning={running}
+                    isFocused={runInfo?.isFocused || false}
+                    isPinned={true}
+                    isLaunching={launchingApps.has(item.appId)}
+                    draggable={true}
+                    onDragStart={onDragStart}
+                    onDragOver={onDragOver}
+                    onDragEnd={onDragEnd}
+                    onClick={() => handleClick(item.appId, running, runInfo?.wmClass)}
+                    onPin={() => {}}
+                    onUnpin={() => onUnpin(item.appId)}
+                    onQuit={() => runInfo && onQuit(runInfo.wmClass)}
+                  />
+                </div>
+              )
+            })}
+
+          {runningOnlyApps.map(app => {
+            const scale = getScale(getItemCenter(`running-${app.wmClass}`))
             return (
               <div
-                key={item.id}
-                ref={el => { if (el) itemRefs.current.set(item.id, el) }}
+                key={`running-${app.wmClass}`}
+                ref={el => { if (el) itemRefs.current.set(`running-${app.wmClass}`, el) }}
+                className="dock-item-wrapper"
               >
                 <DockItem
-                  id={item.id}
-                  name={item.name}
-                  iconPath={item.iconPath}
-                  size={size}
-                  isRunning={running}
-                  isFocused={runInfo?.isFocused || false}
-                  isPinned={true}
-                  isLaunching={launchingApps.has(item.appId)}
-                  draggable={true}
-                  onDragStart={onDragStart}
-                  onDragOver={onDragOver}
-                  onDragEnd={onDragEnd}
-                  onClick={() => handleClick(item.appId, running, runInfo?.wmClass)}
-                  onPin={() => {}}
-                  onUnpin={() => onUnpin(item.appId)}
-                  onQuit={() => runInfo && onQuit(runInfo.wmClass)}
+                  id={`running-${app.wmClass}`}
+                  name={app.name}
+                  iconPath={app.iconPath}
+                  baseSize={baseSize}
+                  scale={scale}
+                  isRunning={true}
+                  isFocused={app.isFocused}
+                  isPinned={false}
+                  isLaunching={false}
+                  draggable={false}
+                  onDragStart={() => {}}
+                  onDragOver={() => {}}
+                  onDragEnd={() => {}}
+                  onClick={() => onFocus(app.wmClass)}
+                  onPin={() => onPin(app.appId)}
+                  onUnpin={() => {}}
+                  onQuit={() => onQuit(app.wmClass)}
                 />
               </div>
             )
           })}
 
-        {/* Separator between pinned and running-only */}
-        {hasRunningOnly && config.pinnedItems.length > 0 && <DockSeparator />}
+          {config.showTrash && <DockSeparator />}
 
-        {/* Running-only apps (not pinned) */}
-        {runningOnlyApps.map(app => {
-          const size = getIconSize(getItemCenter(`running-${app.wmClass}`))
-          return (
+          {config.showTrash && (
             <div
-              key={`running-${app.wmClass}`}
-              ref={el => { if (el) itemRefs.current.set(`running-${app.wmClass}`, el) }}
+              className="dock-item-wrapper"
+              ref={el => { if (el) itemRefs.current.set('trash', el) }}
             >
-              <DockItem
-                id={`running-${app.wmClass}`}
-                name={app.name}
-                iconPath={app.iconPath}
-                size={size}
-                isRunning={true}
-                isFocused={app.isFocused}
-                isPinned={false}
-                isLaunching={false}
-                draggable={false}
-                onDragStart={() => {}}
-                onDragOver={() => {}}
-                onDragEnd={() => {}}
-                onClick={() => onFocus(app.wmClass)}
-                onPin={() => onPin(app.appId)}
-                onUnpin={() => {}}
-                onQuit={() => onQuit(app.wmClass)}
-              />
+              <TrashIcon baseSize={baseSize} scale={getScale(getItemCenter('trash'))} />
             </div>
-          )
-        })}
-
-        {/* Separator before trash */}
-        {config.showTrash && <DockSeparator />}
-
-        {/* Trash */}
-        {config.showTrash && (
-          <TrashIcon size={getIconSize(getItemCenter('trash'))} />
-        )}
+          )}
+        </div>
       </div>
     </div>
   )

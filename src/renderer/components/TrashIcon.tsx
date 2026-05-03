@@ -2,10 +2,11 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Tooltip } from './Tooltip'
 
 interface Props {
-  size: number
+  baseSize: number
+  scale: number
 }
 
-export function TrashIcon({ size }: Props) {
+export function TrashIcon({ baseSize, scale }: Props) {
   const [isEmpty, setIsEmpty] = useState(true)
   const [showTooltip, setShowTooltip] = useState(false)
   const tooltipTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -30,10 +31,12 @@ export function TrashIcon({ size }: Props) {
     setShowTooltip(false)
   }
 
+  const imgSize = baseSize - 8
+
   return (
     <div
       className="dock-item trash-icon"
-      style={{ width: size, height: size }}
+      style={{ width: baseSize, height: baseSize }}
       onClick={handleClick}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -41,7 +44,12 @@ export function TrashIcon({ size }: Props) {
       <Tooltip text="Trash" visible={showTooltip} />
       <div
         className="dock-icon-img trash-svg"
-        style={{ width: size - 8, height: size - 8 }}
+        style={{
+          width: imgSize,
+          height: imgSize,
+          transform: `scale(${scale})`,
+          transformOrigin: 'bottom center',
+        }}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
           <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z" />

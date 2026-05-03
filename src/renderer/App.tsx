@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import type { DockConfig, DockItemConfig, RunningApp } from '../shared/types'
+import type { DockConfig, RunningApp } from '../shared/types'
 import { Dock } from './components/Dock'
 
 export default function App() {
@@ -7,9 +7,7 @@ export default function App() {
   const [runningApps, setRunningApps] = useState<RunningApp[]>([])
 
   useEffect(() => {
-    // Trigger app discovery (sets up default pins on first launch)
     window.dockAPI.getInstalledApps().then(() => {
-      // Now load config (which may have been updated with default pins)
       window.dockAPI.getConfig().then(setConfig)
     })
     window.dockAPI.getRunningApps().then(setRunningApps)
@@ -48,10 +46,6 @@ export default function App() {
     })
   }, [])
 
-  const handleResize = useCallback((height: number) => {
-    window.dockAPI.resizeDock(height)
-  }, [])
-
   if (!config) return null
 
   return (
@@ -64,7 +58,6 @@ export default function App() {
       onPin={handlePin}
       onUnpin={handleUnpin}
       onReorder={handleReorder}
-      onResize={handleResize}
     />
   )
 }
