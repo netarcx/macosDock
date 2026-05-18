@@ -6,10 +6,10 @@ export function createDockWindow(): BrowserWindow {
   const dockHeight = 130
 
   const win = new BrowserWindow({
-    width: display.size.width,
+    width: display.workArea.width,
     height: dockHeight,
-    x: 0,
-    y: display.size.height - dockHeight,
+    x: display.workArea.x,
+    y: display.workArea.y + display.workArea.height - dockHeight,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -20,7 +20,7 @@ export function createDockWindow(): BrowserWindow {
     type: 'dock',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
+      sandbox: true,
     },
   })
 

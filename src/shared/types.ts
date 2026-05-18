@@ -49,8 +49,3 @@ export interface DownloadPreviewItem {
   iconPath: string
   isDirectory: boolean
 }
-
-export interface WindowInfo {
-  windowId: number
-  title: string
-}

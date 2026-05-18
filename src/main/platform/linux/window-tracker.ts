@@ -35,6 +35,7 @@ async function runHelper(args: string[]): Promise<string> {
 export class WindowTracker {
   private interval: ReturnType<typeof setInterval> | null = null
   private callback: ((apps: RunningApp[]) => void) | null = null
+  private isPolling = false
 
   start(callback: (apps: RunningApp[]) => void): void {
     this.callback = callback
@@ -51,12 +52,15 @@ export class WindowTracker {
   }
 
   private async poll(): Promise<void> {
-    if (!this.callback) return
+    if (!this.callback || this.isPolling) return
+    this.isPolling = true
     try {
       const apps = await this.getRunningApps()
-      this.callback(apps)
+      if (this.callback) this.callback(apps)
     } catch {
       // will retry
+    } finally {
+      this.isPolling = false
     }
   }
 
@@ -73,7 +77,6 @@ export class WindowTracker {
   async getRunningApps(): Promise<RunningApp[]> {
     const x11Windows = await this.getX11Windows()
 
-    // Build PID→X11 window map
     const pidToX11 = new Map<number, X11Window[]>()
     for (const win of x11Windows) {
       const list = pidToX11.get(win.pid) || []
@@ -81,8 +84,7 @@ export class WindowTracker {
       pidToX11.set(win.pid, list)
     }
 
-    // Scan /proc for all GUI processes
-    const pids = await readdir('/proc').catch(() => [])
+    const pids = await readdir('/proc').catch(() => [] as string[])
     const appMap = new Map<string, RunningApp>()
 
     const skipList = ['bash', 'sh', 'zsh', 'fish', 'node', 'python3', 'python',
@@ -100,14 +102,26 @@ export class WindowTracker {
       'Utility Process', 'Socket Process', 'Privileged Cont',
       'Isolated Web Co', 'GPU Process', 'crashhelper', 'forkserver']
 
+    const guiPids: number[] = []
     for (const entry of pids) {
       if (!/^\d+$/.test(entry)) continue
       const pid = parseInt(entry)
-
+      if (pidToX11.has(pid)) {
+        guiPids.push(pid)
+        continue
+      }
       try {
         const environRaw = await readFile(`/proc/${pid}/environ`, 'utf-8').catch(() => '')
-        if (!environRaw.includes('WAYLAND_DISPLAY') && !environRaw.includes('DISPLAY')) continue
+        if (environRaw.includes('WAYLAND_DISPLAY') || environRaw.includes('DISPLAY')) {
+          guiPids.push(pid)
+        }
+      } catch {
+        continue
+      }
+    }
 
+    for (const pid of guiPids) {
+      try {
         const comm = (await readFile(`/proc/${pid}/comm`, 'utf-8').catch(() => '')).trim()
         if (!comm) continue
         if (skipList.some(s => comm.startsWith(s))) continue
@@ -121,10 +135,7 @@ export class WindowTracker {
           // permission denied
         }
 
-        // Check if this process has X11 windows
         const x11Wins = pidToX11.get(pid) || []
-
-        // Use X11 wmClass if available, otherwise use exe name
         const wmClass = x11Wins.length > 0 ? x11Wins[0].wmClass : exeName
         const key = wmClass.toLowerCase()
 
@@ -159,7 +170,6 @@ export class WindowTracker {
       }
     }
 
-    // Also add X11 windows that weren't matched to a /proc entry
     for (const win of x11Windows) {
       const key = win.wmClass.toLowerCase()
       if (!key || appMap.has(key)) continue

@@ -6,9 +6,9 @@ export function configureDockWindow(window: BrowserWindow): void {
   const dockHeight = 130
 
   window.setBounds({
-    x: 0,
-    y: display.size.height - dockHeight,
-    width: display.size.width,
+    x: display.workArea.x,
+    y: display.workArea.y + display.workArea.height - dockHeight,
+    width: display.workArea.width,
     height: dockHeight,
   })
 }
@@ -16,9 +16,9 @@ export function configureDockWindow(window: BrowserWindow): void {
 export function resizeDockWindow(window: BrowserWindow, newHeight: number): void {
   const display = screen.getPrimaryDisplay()
   window.setBounds({
-    x: 0,
-    y: display.size.height - newHeight,
-    width: display.size.width,
+    x: display.workArea.x,
+    y: display.workArea.y + display.workArea.height - newHeight,
+    width: display.workArea.width,
     height: newHeight,
   })
 }

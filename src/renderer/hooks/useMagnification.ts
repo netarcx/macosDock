@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef, useState, useEffect } from 'react'
 
 export function useMagnification(
   baseSize: number,
@@ -11,6 +11,12 @@ export function useMagnification(
   const [, setTick] = useState(0)
 
   const INFLUENCE_RADIUS = 200
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    }
+  }, [])
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
     if (!enabled) return
@@ -41,5 +47,5 @@ export function useMagnification(
     return 1 + (maxScale - 1) * Math.pow(Math.cos(ratio * Math.PI / 2), 2)
   }, [maxScale, enabled])
 
-  return { onMouseMove, onMouseLeave, getScale, isHovering: hoveringRef.current }
+  return { onMouseMove, onMouseLeave, getScale }
 }

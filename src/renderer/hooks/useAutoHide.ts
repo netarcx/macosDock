@@ -4,6 +4,12 @@ export function useAutoHide(enabled: boolean, delay: number) {
   const [visible, setVisible] = useState(true)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    }
+  }, [])
+
   const handleMouseEnter = useCallback(() => {
     if (!enabled) return
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
@@ -19,6 +25,7 @@ export function useAutoHide(enabled: boolean, delay: number) {
 
   useEffect(() => {
     if (!enabled) {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
       setVisible(true)
       return
     }

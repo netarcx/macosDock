@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface MenuItem {
   label: string
@@ -15,6 +15,7 @@ interface Props {
 
 export function ContextMenu({ items, x, y, onClose }: Props) {
   const ref = useRef<HTMLDivElement>(null)
+  const [adjustedX, setAdjustedX] = useState(x)
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -26,11 +27,20 @@ export function ContextMenu({ items, x, y, onClose }: Props) {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [onClose])
 
+  useEffect(() => {
+    if (!ref.current) return
+    const rect = ref.current.getBoundingClientRect()
+    const overflow = rect.right - window.innerWidth
+    if (overflow > 0) {
+      setAdjustedX(x - overflow - 8)
+    }
+  }, [x])
+
   return (
     <div
       ref={ref}
       className="context-menu"
-      style={{ left: x, bottom: window.innerHeight - y + 10 }}
+      style={{ left: adjustedX, bottom: window.innerHeight - y + 10 }}
     >
       {items.map((item, i) => (
         <div key={i}>

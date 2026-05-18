@@ -1,7 +1,6 @@
 export const IPC = {
   GET_CONFIG: 'dock:get-config',
   SAVE_CONFIG: 'dock:save-config',
-  GET_PINNED_APPS: 'dock:get-pinned-apps',
   GET_INSTALLED_APPS: 'dock:get-installed-apps',
   GET_RUNNING_APPS: 'dock:get-running-apps',
   RUNNING_APPS_CHANGED: 'dock:running-apps-changed',

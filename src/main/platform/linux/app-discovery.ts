@@ -5,9 +5,9 @@ import type { AppInfo } from '../../../shared/types'
 import { resolveIcon } from './icon-resolver'
 
 const DESKTOP_DIRS = [
-  '/usr/share/applications',
-  '/usr/local/share/applications',
   join(homedir(), '.local/share/applications'),
+  '/usr/local/share/applications',
+  '/usr/share/applications',
   '/var/lib/snapd/desktop/applications',
   '/var/lib/flatpak/exports/share/applications',
 ]
@@ -51,24 +51,38 @@ function parseDesktopFile(content: string, filePath: string): AppInfo | null {
   }
 }
 
+async function readdirRecursive(dir: string): Promise<string[]> {
+  const results: string[] = []
+  let entries: string[]
+  try {
+    entries = await readdir(dir)
+  } catch {
+    return results
+  }
+  for (const entry of entries) {
+    const fullPath = join(dir, entry)
+    if (entry.endsWith('.desktop')) {
+      results.push(fullPath)
+    } else if (!entry.includes('.')) {
+      const sub = await readdirRecursive(fullPath)
+      results.push(...sub)
+    }
+  }
+  return results
+}
+
 export async function discoverInstalledApps(): Promise<AppInfo[]> {
   const apps: AppInfo[] = []
   const seen = new Set<string>()
 
   for (const dir of DESKTOP_DIRS) {
-    let files: string[]
-    try {
-      files = await readdir(dir)
-    } catch {
-      continue
-    }
+    const files = await readdirRecursive(dir)
 
-    for (const file of files) {
-      if (!file.endsWith('.desktop')) continue
-      if (seen.has(file)) continue
-      seen.add(file)
+    for (const filePath of files) {
+      const fileName = filePath.substring(filePath.lastIndexOf('/') + 1)
+      if (seen.has(fileName)) continue
+      seen.add(fileName)
 
-      const filePath = join(dir, file)
       try {
         const content = await readFile(filePath, 'utf-8')
         const app = parseDesktopFile(content, filePath)

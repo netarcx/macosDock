@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useLayoutEffect, useState } from 'react'
 
 interface Props {
   text: string
@@ -10,14 +10,15 @@ export function Tooltip({ text, visible, maxWidth }: Props) {
   const textRef = useRef<HTMLSpanElement>(null)
   const [fontSize, setFontSize] = useState(12)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!visible || !textRef.current) return
-    let size = 12
-    textRef.current.style.fontSize = `${size}px`
+    const el = textRef.current
     const padding = 16
-    while (textRef.current.scrollWidth > maxWidth - padding && size > 7) {
+    let size = 12
+    el.style.fontSize = `${size}px`
+    while (el.scrollWidth > maxWidth - padding && size > 7) {
       size -= 0.5
-      textRef.current.style.fontSize = `${size}px`
+      el.style.fontSize = `${size}px`
     }
     setFontSize(size)
   }, [visible, text, maxWidth])

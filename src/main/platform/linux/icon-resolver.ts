@@ -1,10 +1,21 @@
 import { access, readFile } from 'fs/promises'
 import { execFile } from 'child_process'
+import { join } from 'path'
+import { homedir } from 'os'
 import { promisify } from 'util'
 
 const execFileAsync = promisify(execFile)
 
 let cachedThemeChain: string[] | null = null
+let cacheTimestamp = 0
+const CACHE_TTL_MS = 30 * 60 * 1000
+
+const ICON_BASE_DIRS = [
+  join(homedir(), '.local/share/icons'),
+  join(homedir(), '.icons'),
+  '/usr/local/share/icons',
+  '/usr/share/icons',
+]
 
 async function fileExists(path: string): Promise<boolean> {
   try {
@@ -16,16 +27,20 @@ async function fileExists(path: string): Promise<boolean> {
 }
 
 async function getThemeInherits(themeName: string): Promise<string[]> {
-  try {
-    const content = await readFile(`/usr/share/icons/${themeName}/index.theme`, 'utf-8')
-    const match = content.match(/^Inherits\s*=\s*(.+)$/m)
-    if (match) return match[1].split(',').map(s => s.trim()).filter(Boolean)
-  } catch {}
+  for (const baseDir of ICON_BASE_DIRS) {
+    try {
+      const content = await readFile(join(baseDir, themeName, 'index.theme'), 'utf-8')
+      const match = content.match(/^Inherits\s*=\s*(.+)$/m)
+      if (match) return match[1].split(',').map(s => s.trim()).filter(Boolean)
+    } catch {}
+  }
   return []
 }
 
 async function getIconThemeChain(): Promise<string[]> {
-  if (cachedThemeChain) return cachedThemeChain
+  if (cachedThemeChain && Date.now() - cacheTimestamp < CACHE_TTL_MS) {
+    return cachedThemeChain
+  }
 
   let currentTheme = 'hicolor'
   try {
@@ -53,6 +68,7 @@ async function getIconThemeChain(): Promise<string[]> {
 
   if (!visited.has('hicolor')) chain.push('hicolor')
   cachedThemeChain = chain
+  cacheTimestamp = Date.now()
   return chain
 }
 
@@ -76,16 +92,18 @@ export async function resolveIcon(iconName: string, preferredSize: number): Prom
   })
 
   for (const theme of themeChain) {
-    const themeDir = `/usr/share/icons/${theme}`
-    for (const size of sortedSizes) {
+    for (const baseDir of ICON_BASE_DIRS) {
+      const themeDir = join(baseDir, theme)
+      for (const size of sortedSizes) {
+        for (const ext of EXTENSIONS) {
+          const path = `${themeDir}/${size}x${size}/apps/${iconName}.${ext}`
+          if (await fileExists(path)) return path
+        }
+      }
       for (const ext of EXTENSIONS) {
-        const path = `${themeDir}/${size}x${size}/apps/${iconName}.${ext}`
+        const path = `${themeDir}/scalable/apps/${iconName}.${ext}`
         if (await fileExists(path)) return path
       }
-    }
-    for (const ext of EXTENSIONS) {
-      const path = `${themeDir}/scalable/apps/${iconName}.${ext}`
-      if (await fileExists(path)) return path
     }
   }
 

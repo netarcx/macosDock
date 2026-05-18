@@ -59,7 +59,10 @@ export class LinuxAdapter implements PlatformAdapter {
       const enriched: RunningApp[] = []
       for (const app of rawApps) {
         const desktop = this.matchAppToDesktop(app)
-        if (!desktop) continue
+        if (!desktop) {
+          enriched.push(app)
+          continue
+        }
         enriched.push({
           ...app,
           appId: desktop.appId,
@@ -78,29 +81,25 @@ export class LinuxAdapter implements PlatformAdapter {
   }
 
   async focusWindow(appId: string, windowId: number): Promise<void> {
-    // Try X11 activation (works for XWayland apps)
     await this.windowTracker.focusWindow(windowId)
 
-    // Try D-Bus Application.Activate (works for native Wayland apps)
     if (appId) {
-      await this.focusViaDBus(appId)
+      const running = this.runningApps.find(a => a.appId === appId || a.wmClass === appId)
+      if (running) {
+        const isRealX11Window = running.windowIds.length > 0 && running.windowIds[0] !== running.pid
+        if (!isRealX11Window) {
+          await this.focusViaDBus(running)
+        }
+      }
     }
   }
 
-  private async focusViaDBus(wmClass: string): Promise<void> {
-    const lc = wmClass.toLowerCase()
-
-    const running = this.runningApps.find(a =>
-      a.wmClass.toLowerCase() === lc || a.appId.toLowerCase().includes(lc)
-    )
-    if (!running) return
-
+  private async focusViaDBus(running: RunningApp): Promise<void> {
     const app = this.installedApps.find(a => a.appId === running.appId)
     if (!app) return
 
     const desktopBase = basename(app.desktopFile, '.desktop')
 
-    // Strategy 1: D-Bus Application.Activate (works for GNOME apps with reverse-DNS names)
     if (desktopBase.includes('.')) {
       const objectPath = '/' + desktopBase.replace(/\./g, '/')
       try {
@@ -117,7 +116,6 @@ export class LinuxAdapter implements PlatformAdapter {
       }
     }
 
-    // Strategy 2: gtk-launch (handles snaps and other apps via GIO)
     try {
       await execFileAsync('gtk-launch', [desktopBase], { timeout: 3000 })
     } catch {
@@ -139,7 +137,8 @@ export class LinuxAdapter implements PlatformAdapter {
 
   async openTrash(): Promise<void> {
     const trashPath = join(homedir(), '.local/share/Trash/files')
-    await shell.openPath(trashPath)
+    const err = await shell.openPath(trashPath)
+    if (err) throw new Error(err)
   }
 
   async isTrashEmpty(): Promise<boolean> {

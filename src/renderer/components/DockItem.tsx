@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { Tooltip } from './Tooltip'
 import { RunningIndicator } from './RunningIndicator'
 import { ContextMenu } from './ContextMenu'
@@ -39,6 +39,13 @@ export function DockItem({
   const tooltipTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const didLongPress = useRef(false)
+
+  useEffect(() => {
+    return () => {
+      if (longPressTimer.current) clearTimeout(longPressTimer.current)
+      if (tooltipTimeout.current) clearTimeout(tooltipTimeout.current)
+    }
+  }, [])
 
   const handleMouseEnter = () => {
     setShowTooltip(true)
@@ -91,7 +98,10 @@ export function DockItem({
     return items
   }
 
-  const iconSrc = iconPath.startsWith('/') ? `dock-icon://${encodeURIComponent(iconPath)}` : iconPath
+  const hasIcon = !!iconPath
+  const iconSrc = hasIcon
+    ? (iconPath.startsWith('/') ? `dock-icon://${encodeURIComponent(iconPath)}` : iconPath)
+    : ''
   const scaledSize = Math.round(baseSize * scale)
 
   return (
@@ -117,7 +127,7 @@ export function DockItem({
           height: scaledSize - 8,
         }}
       >
-        {iconSrc ? (
+        {hasIcon ? (
           <img
             src={iconSrc}
             alt={name}

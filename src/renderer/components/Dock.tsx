@@ -50,13 +50,15 @@ export function Dock({
     })
   }, [runningApps])
 
-  const runningOnlyApps = deduplicatedRunning.filter(app => {
-    return !config.pinnedItems.some(p =>
-      p.startupWMClass === app.wmClass ||
-      p.name.toLowerCase() === app.wmClass.toLowerCase() ||
-      p.appId.toLowerCase().includes(app.wmClass.toLowerCase())
-    )
-  })
+  const runningOnlyApps = useMemo(() => {
+    return deduplicatedRunning.filter(app => {
+      return !config.pinnedItems.some(p =>
+        p.startupWMClass === app.wmClass ||
+        p.name.toLowerCase() === app.wmClass.toLowerCase() ||
+        p.appId.toLowerCase().includes(app.wmClass.toLowerCase())
+      )
+    })
+  }, [deduplicatedRunning, config.pinnedItems])
 
   const handleClick = useCallback((appId: string, isRunning: boolean, wmClass?: string) => {
     if (isRunning) {
@@ -90,6 +92,14 @@ export function Dock({
     )
   }, [deduplicatedRunning])
 
+  const setItemRef = useCallback((id: string) => (el: HTMLDivElement | null) => {
+    if (el) {
+      itemRefs.current.set(id, el)
+    } else {
+      itemRefs.current.delete(id)
+    }
+  }, [])
+
   const getItemCenter = (id: string): number => {
     const el = itemRefs.current.get(id)
     if (!el) return 0
@@ -111,16 +121,24 @@ export function Dock({
         <div className="dock-bottom-zone" />
 
         <div className="dock-items">
+          <div
+            key="launchpad"
+            ref={setItemRef('launchpad')}
+            className="dock-item-wrapper"
+          >
+            <LaunchpadIcon baseSize={baseSize} scale={getScale(getItemCenter('launchpad'))} />
+          </div>
+
           {config.pinnedItems
             .sort((a, b) => a.position - b.position)
-            .map((item, idx) => {
+            .map((item) => {
               const running = isAppRunning(item)
               const runInfo = getRunningInfo(item)
               const scale = getScale(getItemCenter(item.id))
-              const elements = [
+              return (
                 <div
                   key={item.id}
-                  ref={el => { if (el) itemRefs.current.set(item.id, el) }}
+                  ref={setItemRef(item.id)}
                   className="dock-item-wrapper"
                 >
                   <DockItem
@@ -145,28 +163,18 @@ export function Dock({
                     onUnpin={() => onUnpin(item.appId)}
                     onQuit={() => runInfo && onQuit(runInfo.wmClass)}
                   />
-                </div>,
-              ]
-              if (idx === 0) {
-                elements.push(
-                  <div
-                    key="launchpad"
-                    ref={el => { if (el) itemRefs.current.set('launchpad', el) }}
-                    className="dock-item-wrapper"
-                  >
-                    <LaunchpadIcon baseSize={baseSize} scale={getScale(getItemCenter('launchpad'))} />
-                  </div>
-                )
-              }
-              return elements
+                </div>
+              )
             })}
+
+          {runningOnlyApps.length > 0 && <DockSeparator />}
 
           {runningOnlyApps.map(app => {
             const scale = getScale(getItemCenter(`running-${app.wmClass}`))
             return (
               <div
                 key={`running-${app.wmClass}`}
-                ref={el => { if (el) itemRefs.current.set(`running-${app.wmClass}`, el) }}
+                ref={setItemRef(`running-${app.wmClass}`)}
                 className="dock-item-wrapper"
               >
                 <DockItem
@@ -199,7 +207,7 @@ export function Dock({
           {config.showDownloads && (
             <div
               className="dock-item-wrapper"
-              ref={el => { if (el) itemRefs.current.set('downloads', el) }}
+              ref={setItemRef('downloads')}
             >
               <DownloadsIcon baseSize={baseSize} scale={getScale(getItemCenter('downloads'))} />
             </div>
@@ -208,7 +216,7 @@ export function Dock({
           {config.showTrash && (
             <div
               className="dock-item-wrapper"
-              ref={el => { if (el) itemRefs.current.set('trash', el) }}
+              ref={setItemRef('trash')}
             >
               <TrashIcon baseSize={baseSize} scale={getScale(getItemCenter('trash'))} />
             </div>
