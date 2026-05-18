@@ -7,6 +7,7 @@ import { resolve } from 'path'
 
 let dockWindow: BrowserWindow | null = null
 
+app.commandLine.appendSwitch('ozone-platform', 'x11')
 app.commandLine.appendSwitch('disable-gpu')
 app.commandLine.appendSwitch('disable-gpu-compositing')
 app.commandLine.appendSwitch('disable-gpu-sandbox')
